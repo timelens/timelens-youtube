@@ -106,7 +106,6 @@ async function getTimelens(videoId) {
 	canvas.dataset.videoId = videoId;
 	canvas.width = params.count;
 	canvas.height = params.height;
-	canvas.style.height = params.height + "px";
 	let ctx = canvas.getContext("2d")
 	
 	let sheetCount = Math.ceil(params.count / params.cols / params.rows);
@@ -201,19 +200,18 @@ style.textContent = `
 	left: 0;
 	bottom: 100%;
 	width: 100%;
+	height: 40px;
 	opacity: 0;
-	transition: opacity 0.5s;
-	display: none;
-	image-rendering: optimizespeed;
+	transition: opacity 0.2s;
+	image-rendering: smooth;
 	transform-origin: 0 0;
 }
 .ytp-progress-bar:hover #timelens,
 .ytp-progress-bar-container.ytp-drag #timelens {
-	opacity: 0.9;
+	opacity: 1;
 	display: block;
 }
 .ytp-tooltip.ytp-preview {
-	transform: translateY(-80px);
+	transform: translateY(-35px);
 }
 `;
-
