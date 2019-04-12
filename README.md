@@ -16,5 +16,5 @@ Installation
 ------------
 
 1. Install a userscript manager for your browser, like [Greasemonkey](https://addons.mozilla.org/en-US/firefox/addon/greasemonkey/) for Firefox or [Tampermonkey](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) for Chrome.
-2. Open the raw [timelens-youtube.user.js](https://github.com/timelens/timelens-youtube/raw/master/youtube-timelens.user.js) file. Your plugin will offer to install it.
+2. Open the raw [timelens-youtube.user.js](https://github.com/timelens/timelens-youtube/raw/master/timelens-youtube.user.js) file. Your plugin will offer to install it.
 3. Now, whenever you're browsing YouTube, you should get a Timelens interface!

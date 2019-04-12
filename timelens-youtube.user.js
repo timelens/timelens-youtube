@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name            YouTube Timelens
-// @description     Generates a timelens (see https://timelens.io/) from YouTube's storyboard thumbnails
-// @namespace       https://github.com/fkloft
+// @name            Timelens for YouTube
+// @description     Adds a Timelens-like interface to YouTube (see https://timelens.io)
+// @namespace       https://github.com/timelens
 // @include         https://www.youtube.com/*
-// @version         1.2.0
+// @version         1.2.1
 // @grant           none
 // @run-at          document-end
 // ==/UserScript==
