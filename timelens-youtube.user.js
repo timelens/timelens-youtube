@@ -3,7 +3,8 @@
 // @description     Adds a Timelens-like interface to YouTube (see https://timelens.io)
 // @namespace       https://github.com/timelens
 // @include         https://www.youtube.com/*
-// @version         1.2.1
+// @updateURL       https://github.com/timelens/timelens-youtube/raw/master/timelens-youtube.user.js
+// @version         1.2.2
 // @grant           none
 // @run-at          document-end
 // ==/UserScript==
