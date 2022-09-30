@@ -1,31 +1,58 @@
 // ==UserScript==
 // @name            Timelens for YouTube
-// @description     Adds a Timelens-like interface to YouTube (see https://timelens.io)
+// @description     Adds a Timelens-like interface to YouTube (see https://timelens.blinry.org)
 // @namespace       https://github.com/timelens
-// @include         https://www.youtube.com/*
-// @updateURL       https://github.com/timelens/timelens-youtube/raw/master/timelens-youtube.user.js
-// @version         1.2.2
+// @match           https://www.youtube.com/*
+// @version         1.2.3
 // @grant           none
 // @run-at          document-end
 // ==/UserScript==
-
 "use strict"
 
+let intervalClock
+
 async function getStoryboard(videoId) {
-    let result = await fetch(
-        "https://www.youtube.com/get_video_info?video_id=" +
-            videoId +
-            "&asv=3&el=detailpage&hl=en_US&html5=1&c=TVHTML5&cver=6.20180913"
-    )
-    let text = await result.text()
-    let videoInfo = new URLSearchParams(text)
-    let player_response = videoInfo.get("player_response")
-    //let player_response = ytplayer.config.args.player_response;
-
-    let details = JSON.parse(player_response)
-
-    let length = parseInt(details.videoDetails.lengthSeconds)
-    let spec = details.storyboards.playerStoryboardSpecRenderer.spec
+    let spec
+    if (!window.ytInitialPlayerResponse) {
+        // for embed youtube
+        let fetch_data = await fetch(
+            `https://www.youtube.com/youtubei/v1/player?key=${window.yt.config_.INNERTUBE_API_KEY}`,
+            {
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                    videoId: videoId,
+                    context: {
+                        client: {
+                            clientName: "WEB_EMBEDDED_PLAYER",
+                            clientVersion: "1.20210629.1.0",
+                        },
+                    },
+                }),
+                method: "POST",
+            }
+        )
+        fetch_data = await fetch_data.json()
+        spec = fetch_data.storyboards
+            ? fetch_data.storyboards.playerStoryboardSpecRenderer ||
+              fetch_data.storyboards.playerLiveStoryboardSpecRenderer
+            : null
+        if (spec) {
+            spec = spec.spec
+        } else {
+            window.clearInterval(intervalClock)
+            throw `Cannot find storyboard url, the video ${videoId} likely only have a static image (2)`
+        }
+    } else {
+        spec =
+            window.ytInitialPlayerResponse.storyboards
+                .playerStoryboardSpecRenderer?.spec ||
+            window.ytInitialPlayerResponse.storyboards
+                .playerLiveStoryboardSpecRenderer.spec
+    }
+    console.log("Found storyboard url: ", spec)
+    window.clearInterval(intervalClock)
 
     let parts = spec.split("|")
     let baseUrl = parts.shift()
@@ -41,7 +68,9 @@ async function getStoryboard(videoId) {
         let replacement = params[6]
         let sigh = params[7]
 
-        if (replacement == "default") replacement = "$M"
+        if (replacement == "default") {
+            replacement = "$M"
+        }
 
         let url =
             baseUrl.replace(/\$L/, "" + i).replace(/\$N/, replacement) +
@@ -120,6 +149,10 @@ async function getTimelens(videoId) {
     let storyboard = await getStoryboard(videoId)
 
     let params = storyboard.levels.pop()
+    if (!params) {
+        window.clearInterval(intervalClock)
+        throw `Cannot find storyboard url, the video ${videoId} likely only have a static image (1)`
+    }
 
     let canvas = document.createElement("canvas")
     canvas.dataset.videoId = videoId
@@ -144,8 +177,9 @@ async function insertTimelens() {
         let canvas = await getTimelens(videoId)
         canvas.id = "timelens"
 
-        while ((old = document.getElementById("timelens")))
+        while ((old = document.getElementById("timelens"))) {
             old.parentNode.removeChild(old)
+        }
 
         bar.appendChild(canvas)
     }
@@ -155,15 +189,23 @@ function ProgressBarObserver() {
     let timeLeft = document.querySelector(".ytp-bound-time-left")
     let timeRight = document.querySelector(".ytp-bound-time-right")
 
-    if (!(timeLeft && timeRight)) throw "No video loaded yet"
+    if (!(timeLeft && timeRight)) {
+        throw "No video loaded yet"
+    }
 
     function getTime(element) {
         let values = element.textContent.split(":")
 
         let seconds = parseInt(values.pop())
-        if (values.length) seconds += parseInt(values.pop()) * 60
-        if (values.length) seconds += parseInt(values.pop()) * 60 * 60
-        if (values.length) seconds += parseInt(values.pop()) * 60 * 60 * 24
+        if (values.length) {
+            seconds += parseInt(values.pop()) * 60
+        }
+        if (values.length) {
+            seconds += parseInt(values.pop()) * 60 * 60
+        }
+        if (values.length) {
+            seconds += parseInt(values.pop()) * 60 * 60 * 24
+        }
 
         return seconds
     }
@@ -177,7 +219,11 @@ function ProgressBarObserver() {
         let start = getTime(timeLeft)
         let end = getTime(timeRight)
 
-        return {length, start, end}
+        return {
+            length,
+            start,
+            end,
+        }
     }
 
     let observer = new MutationObserver(() => {
@@ -209,10 +255,17 @@ function ProgressBarObserver() {
     }
 }
 
-var progressObserver = null
+var progressObserver = null,
+    flag = false
 
-setInterval(function () {
-    insertTimelens().catch(console.error)
+intervalClock = setInterval(function () {
+    insertTimelens().catch(function () {
+        clearInterval(intervalClock)
+        console.error(...arguments)
+        flag = true
+    })
+
+    if (flag) return
 
     if (!progressObserver) {
         try {
