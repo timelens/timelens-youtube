@@ -3,17 +3,34 @@
 // @description     Adds a Timelens-like interface to YouTube (see https://timelens.blinry.org)
 // @namespace       https://github.com/timelens
 // @match           https://www.youtube.com/*
-// @version         1.2.3
+// @version         1.2.4
 // @grant           none
 // @run-at          document-end
 // ==/UserScript==
 "use strict"
 
 let intervalClock
+let failedVideoId = null
+let building = false
+
+// ytInitialPlayerResponse goes stale after in-site navigation, so prefer the player's
+function getPlayerResponse(videoId) {
+    let player = document.getElementById("movie_player")
+    let response = player?.getPlayerResponse?.()
+    if (response?.videoDetails?.videoId == videoId) return response
+
+    let initial = window.ytInitialPlayerResponse
+    if (initial?.videoDetails?.videoId == videoId) return initial
+
+    return null
+}
 
 async function getStoryboard(videoId) {
     let spec
-    if (!window.ytInitialPlayerResponse) {
+    let response = getPlayerResponse(videoId)
+    let isEmbed = location.pathname.startsWith("/embed/")
+    if (!response && !isEmbed) return null // player not switched yet, retry
+    if (!response) {
         // for embed youtube
         let fetch_data = await fetch(
             `https://www.youtube.com/youtubei/v1/player?key=${window.yt.config_.INNERTUBE_API_KEY}`,
@@ -41,18 +58,17 @@ async function getStoryboard(videoId) {
         if (spec) {
             spec = spec.spec
         } else {
-            window.clearInterval(intervalClock)
             throw `Cannot find storyboard url, the video ${videoId} likely only have a static image (2)`
         }
     } else {
         spec =
-            window.ytInitialPlayerResponse.storyboards
-                .playerStoryboardSpecRenderer?.spec ||
-            window.ytInitialPlayerResponse.storyboards
-                .playerLiveStoryboardSpecRenderer.spec
+            response.storyboards?.playerStoryboardSpecRenderer?.spec ||
+            response.storyboards?.playerLiveStoryboardSpecRenderer?.spec
+        if (!spec) {
+            throw `Cannot find storyboard url, the video ${videoId} likely only have a static image (3)`
+        }
     }
     console.log("Found storyboard url: ", spec)
-    window.clearInterval(intervalClock)
 
     let parts = spec.split("|")
     let baseUrl = parts.shift()
@@ -147,10 +163,10 @@ async function loadSheet(params, sheet, ctx) {
 
 async function getTimelens(videoId) {
     let storyboard = await getStoryboard(videoId)
+    if (!storyboard) return null
 
     let params = storyboard.levels.pop()
     if (!params) {
-        window.clearInterval(intervalClock)
         throw `Cannot find storyboard url, the video ${videoId} likely only have a static image (1)`
     }
 
@@ -168,13 +184,22 @@ async function getTimelens(videoId) {
 
 async function insertTimelens() {
     let videoId = getVideoId()
-    if (!videoId) return
 
     let old = document.getElementById("timelens")
+    if (old && old.dataset.videoId != videoId) {
+        old.remove()
+        old = null
+    }
 
-    if (!old || old.dataset.videoId != videoId) {
-        let bar = document.querySelector(".ytp-progress-bar")
+    if (!videoId || old || building || videoId == failedVideoId) return
+
+    let bar = document.querySelector(".ytp-progress-bar")
+    if (!bar) return
+
+    building = true
+    try {
         let canvas = await getTimelens(videoId)
+        if (!canvas || getVideoId() != videoId) return
         canvas.id = "timelens"
 
         while ((old = document.getElementById("timelens"))) {
@@ -182,6 +207,11 @@ async function insertTimelens() {
         }
 
         bar.appendChild(canvas)
+    } catch (e) {
+        failedVideoId = videoId
+        throw e
+    } finally {
+        building = false
     }
 }
 
@@ -255,17 +285,12 @@ function ProgressBarObserver() {
     }
 }
 
-var progressObserver = null,
-    flag = false
+var progressObserver = null
 
 intervalClock = setInterval(function () {
     insertTimelens().catch(function () {
-        clearInterval(intervalClock)
         console.error(...arguments)
-        flag = true
     })
-
-    if (flag) return
 
     if (!progressObserver) {
         try {
